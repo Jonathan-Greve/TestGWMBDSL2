@@ -168,14 +168,14 @@ int main() {
             return static_cast<int>(left == right);
         case 1: // '!='
             return static_cast<int>(left != right);
-        case 2: // '>'
-            return static_cast<int>(left > right);
-        case 3: // '<'
-            return static_cast<int>(left < right);
-        case 4: // '>='
+        case 2: // '>='
             return static_cast<int>(left >= right);
-        case 5: // '<='
+        case 3: // '<='
             return static_cast<int>(left <= right);
+        case 4: // '>'
+            return static_cast<int>(left > right);
+        case 5: // '<'
+            return static_cast<int>(left < right);
         default:
             break;
         }
@@ -254,6 +254,59 @@ int main() {
 
         {"hash2 == hash1 or not hash2 == hash0", 1},
         {"hash2 == hash1 not or hash2 == hash0", 1, false},
+
+        {"hash0 != hash1", 1},
+        {"size1 != 150", 1},
+        {"hash0 != size0", 1},
+        {"size2 != hash2", 1},
+
+        {"size1 > size0", 0},
+        {"size2 > 100", 1},
+        {"150 < size2", 1},
+        {"size0 < 150", 0},
+        {"size1 < 200", 1},
+
+        {"size0 >= 150", 1},
+        {"size1 <= 0", 1},
+        {"200 >= size2", 1},
+        {"size2 <= 300", 1},
+        {"100 <= size1", 0},
+
+        {"size0 == 150 and size1 == 0", 1},
+        {"hash1 == hash0 or size1 < size2", 1},
+        {"hash1 == hash0 or size1 > size2", 0},
+        {"size2 > size1 and hash2 != hash1", 1},
+        {"(size0 == 150 or size1 == 0) and hash2", 1},
+        {"hash0 and size0 == 150", 0},
+
+        {"not size0 == 150", 0},
+        {"not (hash1 == hash2)", 1},
+        {"not size2 < size1", 1},
+        {"not (size2 > 100 and size1 == 0)", 0},
+        {"not (size0 < 150 or size2 == 200)", 0},
+        {"not hash0 != size1", 1},
+
+        {"exists(hash0, hash1)", 1},
+        {"exists(hash3, hash1)", 0},
+        {"not exists(hash3)", 1},
+        {"exists(hash2) and hash2 == 2", 1},
+        {"exists(hash1) or size2 > 200", 1},
+
+        {"(size0 == 150 or size1 < size2) and not hash1", 0},
+        {"not (hash2 != hash1 and size1 >= 0)", 0},
+        {"(exists(hash0, hash1) or size2 < 300) and size0", 1},
+        {"not (size2 <= size0 or hash0 == hash1)", 1},
+        {"(size1 == 0 and not size0 == 150) or hash2", 1},
+        {"(size1 == 0 and not size0 == 150)", 0 },
+
+        {"not (not size0 == 150)", 1},
+        {"not not size0 == 150", 1 },
+        {"not not not size0 == 150", 0 },
+        { "not (not (not (size0 == 150)))", 0 },
+        {"(not (size1 > size0) and size2)", 1},
+        {"not (exists(hash3) or not size2 >= 200)", 1},
+        {"(exists(hash0) and not (size1 or not hash2))", 1},
+        {"(not (hash1 == hash0) and not (size2 < size1))", 1}
     };
 
     // Run the tests
