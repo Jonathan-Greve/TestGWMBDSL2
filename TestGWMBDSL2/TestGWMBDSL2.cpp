@@ -6,9 +6,10 @@
 using namespace peg;
 
 struct FileVersion {
-    bool exists;
-    int hash;
+    int fid;
     int size;
+    int fname0;
+    int fname1;
 };
 
 struct TestCase {
@@ -60,12 +61,15 @@ int main() {
     AND_OP        <- PRIMARY ('and' PRIMARY)*
     PRIMARY       <- (NOT_OP / '(' EXPR ')' / EXISTS / COMP / COMPARE_TYPE) WHITESPACE
     NOT_OP        <- 'not' PRIMARY
-    EXISTS        <- 'exists' '(' HASH Number (',' HASH Number)* ')'
+    EXISTS        <- 'exists' '(' FID Number (',' FID Number)* ')'
     COMP          <- COMPARE_TYPE COMP_OP PRIMARY
     COMP_OP       <- '==' / '!=' / '>=' / '<=' / '>' / '<'
-    COMPARE_TYPE  <- HASH Number / SIZE Number / Number
-    ~HASH         <- 'hash'
+    COMPARE_TYPE  <- FID Number / SIZE Number / FNAME0 Number / FNAME1 Number / FNAME Number  / Number
+    ~FID          <- 'fid'
     ~SIZE         <- 'size'
+    ~FNAME        <- 'fname'
+    ~FNAME0       <- 'fname0'
+    ~FNAME1       <- 'fname1'
     Number        <- < [0-9]+ >
     ~WHITESPACE   <- SPACE
     ~SPACE        <- (' ' / '\t')*
@@ -85,12 +89,12 @@ int main() {
 
     // Sample data for tests
     std::unordered_map<std::string, FileVersion> fileVersions = {
-        {"v0", {true, 0, 150}},  // v0 exists with size 150
-        {"v1", {false, 1, 0}},   // v1 does not exist
-        {"v2", {true, 2, 200}}   // v2 exists with size 200
+        {"v0", {0, 150, 900, 980}},  // v0 exists with size 150
+        {"v1", {1, 0, 911, 981}},   // v1 does not exist
+        {"v2", {2, 200, 922, 982}}   // v2 exists with size 200
     };
 
-    std::set<int> hashes;
+    std::set<int> fides;
 
     // Define semantic actions
     parser["COMPARE_TYPE"] = [&](const SemanticValues& sv) {
@@ -100,9 +104,15 @@ int main() {
             switch (sv.choice())
             {
             case 0:
-                return fileVersions[val].hash;
+                return fileVersions[val].fid;
             case 1:
                 return fileVersions[val].size;
+            case 2:
+                return fileVersions[val].fname0;
+            case 3:
+                return fileVersions[val].fname1;
+            case 4:
+                return ((fileVersions[val].fname0 & 0xFFFF) << 16) | fileVersions[val].fname1 & 0xFFFF;
             default:
                 break;
             }
@@ -197,17 +207,17 @@ int main() {
         };
 
     std::vector<TestCase> test_cases = {
-        {"hash0 == hash0", 1},
-        {"hash0 == hash1", 0},
-        {"hash0 == hash2", 0},
+        {"fid0 == fid0", 1},
+        {"fid0 == fid1", 0},
+        {"fid0 == fid2", 0},
 
-        {"hash1 == hash0", 0},
-        {"hash1 == hash1", 1},
-        {"hash1 == hash2", 0},
+        {"fid1 == fid0", 0},
+        {"fid1 == fid1", 1},
+        {"fid1 == fid2", 0},
 
-        {"hash2 == hash0", 0},
-        {"hash2 == hash1", 0},
-        {"hash2 == hash2", 1},
+        {"fid2 == fid0", 0},
+        {"fid2 == fid1", 0},
+        {"fid2 == fid2", 1},
 
         {"size0 == 150", 1},
         {"size1 == 0", 1},
@@ -221,44 +231,44 @@ int main() {
         {"size2 < size1", 0},
         {"size2 <= size1", 0},
 
-        {"(hash2 == hash1 or hash2 == hash0)", 0},
-        {"(hash2 == hash1 or hash2 == hash0) or size1 == 0", 1},
-        {"(hash2 == hash1 or hash2 == hash0) or size1 == 0 and size1 == 1", 0},
-        {"(hash2 == hash1 or hash2 == hash0) or size1 == 0 and size1 == 0", 1},
-        {"(hash2 == hash1 or hash2 == hash0) or size1 == 0 and size0 == 150", 1},
+        {"(fid2 == fid1 or fid2 == fid0)", 0},
+        {"(fid2 == fid1 or fid2 == fid0) or size1 == 0", 1},
+        {"(fid2 == fid1 or fid2 == fid0) or size1 == 0 and size1 == 1", 0},
+        {"(fid2 == fid1 or fid2 == fid0) or size1 == 0 and size1 == 0", 1},
+        {"(fid2 == fid1 or fid2 == fid0) or size1 == 0 and size0 == 150", 1},
 
-        {"hash2 == hash1 or hash2 == hash0", 0},
-        {"hash2 == hash1 or hash2 == hash0 or size1 == 0", 1},
-        {"hash2 == hash1 or hash2 == hash0 or size1 == 0 and size1 == 1", 0},
-        {"hash2 == hash1 or hash2 == hash0 or size1 == 0 and size1 == 0", 1},
-        {"hash2 == hash1 or hash2 == hash0 or size1 == 0 and size0 == 150", 1},
+        {"fid2 == fid1 or fid2 == fid0", 0},
+        {"fid2 == fid1 or fid2 == fid0 or size1 == 0", 1},
+        {"fid2 == fid1 or fid2 == fid0 or size1 == 0 and size1 == 1", 0},
+        {"fid2 == fid1 or fid2 == fid0 or size1 == 0 and size1 == 0", 1},
+        {"fid2 == fid1 or fid2 == fid0 or size1 == 0 and size0 == 150", 1},
         {"1 or 2", 1},
         {"0 or 0", 0},
         {"0 and 0", 0},
         {"1 and 0", 0},
         {"1 and 1", 1},
         {"1 and 2", 1},
-        {"exists(hash0)", 1},
-        {"exists(hash1)", 1},
-        {"exists(hash2)", 1},
-        {"exists(hash3)", 0},
+        {"exists(fid0)", 1},
+        {"exists(fid1)", 1},
+        {"exists(fid2)", 1},
+        {"exists(fid3)", 0},
 
-        {"not exists(hash0)", 0},
-        {"not exists(hash1)", 0},
-        {"not exists(hash2)", 0},
-        {"not exists(hash3)", 1},
+        {"not exists(fid0)", 0},
+        {"not exists(fid1)", 0},
+        {"not exists(fid2)", 0},
+        {"not exists(fid3)", 1},
 
-        {"not exists(hash0) or exists(hash0)", 1},
-        {"not (exists(hash0) or exists(hash0))", 0},
-        {"(not exists(hash0)) or exists(hash0)", 1},
+        {"not exists(fid0) or exists(fid0)", 1},
+        {"not (exists(fid0) or exists(fid0))", 0},
+        {"(not exists(fid0)) or exists(fid0)", 1},
 
-        {"hash2 == hash1 or not hash2 == hash0", 1},
-        {"hash2 == hash1 not or hash2 == hash0", 1, false},
+        {"fid2 == fid1 or not fid2 == fid0", 1},
+        {"fid2 == fid1 not or fid2 == fid0", 1, false},
 
-        {"hash0 != hash1", 1},
+        {"fid0 != fid1", 1},
         {"size1 != 150", 1},
-        {"hash0 != size0", 1},
-        {"size2 != hash2", 1},
+        {"fid0 != size0", 1},
+        {"size2 != fid2", 1},
 
         {"size1 > size0", 0},
         {"size2 > 100", 1},
@@ -273,30 +283,30 @@ int main() {
         {"100 <= size1", 0},
 
         {"size0 == 150 and size1 == 0", 1},
-        {"hash1 == hash0 or size1 < size2", 1},
-        {"hash1 == hash0 or size1 > size2", 0},
-        {"size2 > size1 and hash2 != hash1", 1},
-        {"(size0 == 150 or size1 == 0) and hash2", 1},
-        {"hash0 and size0 == 150", 0},
+        {"fid1 == fid0 or size1 < size2", 1},
+        {"fid1 == fid0 or size1 > size2", 0},
+        {"size2 > size1 and fid2 != fid1", 1},
+        {"(size0 == 150 or size1 == 0) and fid2", 1},
+        {"fid0 and size0 == 150", 0},
 
         {"not size0 == 150", 0},
-        {"not (hash1 == hash2)", 1},
+        {"not (fid1 == fid2)", 1},
         {"not size2 < size1", 1},
         {"not (size2 > 100 and size1 == 0)", 0},
         {"not (size0 < 150 or size2 == 200)", 0},
-        {"not hash0 != size1", 1},
+        {"not fid0 != size1", 1},
 
-        {"exists(hash0, hash1)", 1},
-        {"exists(hash3, hash1)", 0},
-        {"not exists(hash3)", 1},
-        {"exists(hash2) and hash2 == 2", 1},
-        {"exists(hash1) or size2 > 200", 1},
+        {"exists(fid0, fid1)", 1},
+        {"exists(fid3, fid1)", 0},
+        {"not exists(fid3)", 1},
+        {"exists(fid2) and fid2 == 2", 1},
+        {"exists(fid1) or size2 > 200", 1},
 
-        {"(size0 == 150 or size1 < size2) and not hash1", 0},
-        {"not (hash2 != hash1 and size1 >= 0)", 0},
-        {"(exists(hash0, hash1) or size2 < 300) and size0", 1},
-        {"not (size2 <= size0 or hash0 == hash1)", 1},
-        {"(size1 == 0 and not size0 == 150) or hash2", 1},
+        {"(size0 == 150 or size1 < size2) and not fid1", 0},
+        {"not (fid2 != fid1 and size1 >= 0)", 0},
+        {"(exists(fid0, fid1) or size2 < 300) and size0", 1},
+        {"not (size2 <= size0 or fid0 == fid1)", 1},
+        {"(size1 == 0 and not size0 == 150) or fid2", 1},
         {"(size1 == 0 and not size0 == 150)", 0 },
 
         {"not (not size0 == 150)", 1},
@@ -304,9 +314,20 @@ int main() {
         {"not not not size0 == 150", 0 },
         { "not (not (not (size0 == 150)))", 0 },
         {"(not (size1 > size0) and size2)", 1},
-        {"not (exists(hash3) or not size2 >= 200)", 1},
-        {"(exists(hash0) and not (size1 or not hash2))", 1},
-        {"(not (hash1 == hash0) and not (size2 < size1))", 1}
+        {"not (exists(fid3) or not size2 >= 200)", 1},
+        {"(exists(fid0) and not (size1 or not fid2))", 1},
+        {"(not (fid1 == fid0) and not (size2 < size1))", 1},
+
+        { "fname00 == fname00", 1 },
+        { "fname01 != fname11", 1 },
+        { "fname00 == fname10", 0 },
+        { "fname11 == fname01", 0 },
+        { "fname10 > fname00", 1 },
+        { "fname00 < fname10", 1 },
+        { "fname01 >= fname11", 0 },
+        { "fname11 <= fname01", 0 },
+        { "fname00 == 900 and fname10 == 980", 1 },
+        { "fname11 == 981 or fname01 < fname00", 1 }
     };
 
     // Run the tests
