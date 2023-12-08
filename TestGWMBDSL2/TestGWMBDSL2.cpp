@@ -80,11 +80,10 @@ int main() {
         std::cerr << line << ":" << col << ": " << msg << " in rule: " << rule << "\n";
         });
 
-    // Load the grammar
     auto ok = parser.load_grammar(grammar);
-    assert(ok); // Ensure the grammar is loaded correctly
+    assert(ok);
 
-    // Sample data model for file versions
+    // Sample data for tests
     std::unordered_map<std::string, FileVersion> fileVersions = {
         {"v0", {true, 0, 150}},  // v0 exists with size 150
         {"v1", {false, 1, 0}},   // v1 does not exist
@@ -118,7 +117,6 @@ int main() {
 
     parser["OR_OP"] = [&](const SemanticValues& sv) {
         if (sv.size() == 1) {
-            // Only one element, return it directly
             return any_cast<int>(sv[0]);
         }
 
@@ -133,7 +131,6 @@ int main() {
 
     parser["AND_OP"] = [&](const SemanticValues& sv) {
         if (sv.size() == 1) {
-            // Only one element, return it directly
             return any_cast<int>(sv[0]);
         }
 
@@ -199,7 +196,6 @@ int main() {
         return number;
         };
 
-    // Define some test cases
     std::vector<TestCase> test_cases = {
         {"hash0 == hash0", 1},
         {"hash0 == hash1", 0},
