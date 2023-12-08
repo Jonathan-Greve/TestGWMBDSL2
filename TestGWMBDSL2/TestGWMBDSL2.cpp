@@ -11,16 +11,39 @@ struct FileVersion {
     int size;
 };
 
-bool run_test(const parser& p, const std::string& input, int expected, std::unordered_map<std::string, FileVersion>& fileVersions) {
+struct TestCase {
+    std::string input;
+    int expected;
+    bool expect_parse_success;
+
+    TestCase(std::string i, int e, bool eps = true)
+        : input(std::move(i)), expected(e), expect_parse_success(eps) {}
+};
+
+
+bool run_test(parser& p, const std::string& input, int expected, std::unordered_map<std::string, FileVersion>& fileVersions, bool expect_parse_success) {
     int val = 0;
+
+    if (expect_parse_success) {
+        p.set_logger([](size_t line, size_t col, const std::string& msg, const std::string& rule) {
+            std::cerr << line << ":" << col << ": " << msg << " in rule: " << rule << "\n";
+            });
+    }
+    else {
+        p.set_logger([](size_t line, size_t col, const std::string& msg, const std::string& rule) {
+            });
+    }
+
     bool success = p.parse(input, val);
 
     if (!success) {
-        std::cout << "Parsing failed for input: " << input << std::endl;
-        return false;
+        if (expect_parse_success) {
+            std::cout << "Unexpected parsing failure. Test failed for input: " << input << std::endl;
+            return false;
+        }
     }
 
-    if (val != expected) {
+    if (val != expected && expect_parse_success) {
         std::cout << "Test failed for input: " << input << ". Expected: " << expected << ", Got: " << val << std::endl;
         return false;
     }
@@ -32,11 +55,11 @@ bool run_test(const parser& p, const std::string& input, int expected, std::unor
 int main() {
     // Define the grammar
     auto grammar = R"(
-    EXPR          <- OR_OP / NOT_OP
-    NOT_OP        <- 'not' OR_OP
+    EXPR          <- OR_OP
     OR_OP         <- AND_OP ('or' AND_OP)*
     AND_OP        <- PRIMARY ('and' PRIMARY)*
-    PRIMARY       <- ('(' EXPR ')' / EXISTS / COMP / COMPARE_TYPE) WHITESPACE
+    PRIMARY       <- (NOT_OP / '(' EXPR ')' / EXISTS / COMP / COMPARE_TYPE) WHITESPACE
+    NOT_OP        <- 'not' PRIMARY
     EXISTS        <- 'exists' '(' HASH Number (',' HASH Number)* ')'
     COMP          <- COMPARE_TYPE COMP_OP PRIMARY
     COMP_OP       <- '==' / '!=' / '>=' / '<=' / '>' / '<'
@@ -89,11 +112,11 @@ int main() {
         return num;
         };
 
-        parser["NOT_OP"] = [&](const SemanticValues& sv) {
-                return static_cast<int>(!static_cast<bool>(any_cast<int>(sv[0])));
-            };
+    parser["NOT_OP"] = [&](const SemanticValues& sv) {
+        return static_cast<int>(!static_cast<bool>(any_cast<int>(sv[0])));
+        };
 
-        parser["OR_OP"] = [&](const SemanticValues& sv) {
+    parser["OR_OP"] = [&](const SemanticValues& sv) {
         if (sv.size() == 1) {
             // Only one element, return it directly
             return any_cast<int>(sv[0]);
@@ -137,7 +160,7 @@ int main() {
 
         return static_cast<int>(allExist);
         };
-    
+
     parser["COMP"] = [&](const SemanticValues& sv) {
         auto left = any_cast<int>(sv[0]);
         auto right = any_cast<int>(sv[2]);
@@ -177,7 +200,7 @@ int main() {
         };
 
     // Define some test cases
-    std::vector<std::pair<std::string, int>> test_cases = {
+    std::vector<TestCase> test_cases = {
         {"hash0 == hash0", 1},
         {"hash0 == hash1", 0},
         {"hash0 == hash2", 0},
@@ -229,15 +252,18 @@ int main() {
         {"not exists(hash2)", 0},
         {"not exists(hash3)", 1},
 
-        {"not exists(hash0) or exists(hash0)", 0},
+        {"not exists(hash0) or exists(hash0)", 1},
         {"not (exists(hash0) or exists(hash0))", 0},
         {"(not exists(hash0)) or exists(hash0)", 1},
+
+        {"hash2 == hash1 or not hash2 == hash0", 1},
+        {"hash2 == hash1 not or hash2 == hash0", 1, false},
     };
 
     // Run the tests
     bool all_passed = true;
     for (const auto& test : test_cases) {
-        bool result = run_test(parser, test.first, test.second, fileVersions);
+        bool result = run_test(parser, test.input, test.expected, fileVersions, test.expect_parse_success);
         all_passed = all_passed && result;
     }
 
