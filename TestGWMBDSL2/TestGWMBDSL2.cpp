@@ -16,13 +16,14 @@ struct TestCase {
     std::string input;
     int expected;
     bool expect_parse_success;
+    bool expect_exception;
 
-    TestCase(std::string i, int e, bool eps = true)
-        : input(std::move(i)), expected(e), expect_parse_success(eps) {}
+    TestCase(std::string i, int e, bool eps = true, bool ee = false)
+        : input(std::move(i)), expected(e), expect_parse_success(eps), expect_exception(ee) {}
 };
 
 
-bool run_test(parser& p, const std::string& input, int expected, std::unordered_map<std::string, FileVersion>& fileVersions, bool expect_parse_success) {
+bool run_test(parser& p, const std::string& input, int expected, std::unordered_map<std::string, FileVersion>& fileVersions, bool expect_parse_success, bool expect_exception) {
     int val = 0;
 
     if (expect_parse_success) {
@@ -35,21 +36,38 @@ bool run_test(parser& p, const std::string& input, int expected, std::unordered_
             });
     }
 
-    bool success = p.parse(input, val);
+    bool success = false;
+    bool exception_thrown = false;
+    try
+    {
+        success = p.parse(input, val);
+    }
+    catch (const std::exception& e)
+    {
+        if (!expect_exception) {
+            std::cout << "Unexpected evaluation failure. Test failed for input: " << "\"" << input << "\"" << " with error: " << e.what() << std::endl;
+            return false;
+        }
+        else {
+            std::cout << "Test passed for input: " << "\"" << input << "\"" << std::endl;
+            return true;
+        }
+    }
 
     if (!success) {
+        
         if (expect_parse_success) {
-            std::cout << "Unexpected parsing failure. Test failed for input: " << input << std::endl;
+            std::cout << "Unexpected parsing failure. Test failed for input: " << "\"" << input << "\"" << std::endl;
             return false;
         }
     }
 
     if (val != expected && expect_parse_success) {
-        std::cout << "Test failed for input: " << input << ". Expected: " << expected << ", Got: " << val << std::endl;
+        std::cout << "Test failed for input: " << "\"" << input << "\"" << ". Expected: " << expected << ", Got: " << val << std::endl;
         return false;
     }
 
-    std::cout << "Test passed for input: " << input << std::endl;
+    std::cout << "Test passed for input: " << "\"" << input << "\"" << std::endl;
     return true;
 }
 
@@ -249,10 +267,14 @@ int main() {
             case 1: // '/'
                 if (val != 0)
                     result /= val;
+                else
+                    throw std::runtime_error("Division by zero");
                 break;
             case 2: // '%'
                 if (val != 0)
                     result %= val;
+                else
+                    throw std::runtime_error("Modulo by zero");
                 break;
             default:
                 break;
@@ -458,13 +480,19 @@ int main() {
         { "20 - (15 / 3) == 15", 1 },
         { "(10 % 3) * 5 == 5", 1 },
         { "(18 / 2) - 3 == 6", 1 },
-        { "((5 + 5) * 2) / 5 == 4", 1 }
+        { "((5 + 5) * 2) / 5 == 4", 1 },
+
+        { "1 / 0 == 0", 1, true, true },
+        { "1 % 0 == 0", 1, true, true },
+        { "0 / 1 == 0", 1, true, false },
+        { "0 % 1 == 0", 1, true, false },
+        { "size0 / size1 == size2", 1, true, true },
     };
 
     // Run the tests
     bool all_passed = true;
     for (const auto& test : test_cases) {
-        bool result = run_test(parser, test.input, test.expected, fileVersions, test.expect_parse_success);
+        bool result = run_test(parser, test.input, test.expected, fileVersions, test.expect_parse_success, test.expect_exception);
         all_passed = all_passed && result;
     }
 
